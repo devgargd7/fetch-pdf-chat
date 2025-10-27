@@ -4,23 +4,44 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:full": "concurrently \"npm run dev\" \"npm run python:dev\"",
+    "python:dev": "./start-python-server.sh",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "test:embeddings": "node test-embeddings.js"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^2.0.53",
+    "@prisma/client": "^6.18.0",
+    "@types/multer": "^2.0.0",
+    "@types/pg": "^8.15.5",
+    "ai": "^5.0.79",
+    "concurrently": "^9.2.1",
+    "dotenv": "^17.2.3",
+    "multer": "^2.0.2",
+    "nanoid": "^5.1.6",
+    "next": "16.0.0",
+    "pdfjs-dist": "^5.4.296",
+    "pg": "^8.16.3",
+    "prisma": "^6.18.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "next": "16.0.0"
+    "react-pdf": "^10.2.0",
+    "zod": "^4.1.12"
   },
   "devDependencies": {
-    "typescript": "^5",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
     "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
     "eslint": "^9",
-    "eslint-config-next": "16.0.0"
+    "eslint-config-next": "16.0.0",
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }
