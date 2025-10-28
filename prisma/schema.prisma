@@ -6,7 +6,6 @@
 
 generator client {
   provider = "prisma-client-js"
-  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
@@ -40,6 +39,7 @@ model Document {
   id            String         @id @default(cuid())
   filename      String
   filePath      String?        // Path where file is stored (optional for serverless)
+  fileData      Bytes?         // PDF file stored as binary in database
   userId        String
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt     DateTime       @default(now())
