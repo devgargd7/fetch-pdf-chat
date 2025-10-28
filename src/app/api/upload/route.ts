@@ -8,6 +8,9 @@ import { getCurrentUser } from "@/lib/session";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 // This function processes the PDF by forwarding it to our Python function.
 // We get back the structured data (chunks) and save it to our Postgres DB.
 export async function POST(request: NextRequest) {
@@ -46,21 +49,39 @@ export async function POST(request: NextRequest) {
 
   try {
     // Call the Python PDF processing function
+    console.log("Calling Python function at:", pythonApiUrl);
     pythonResponse = await fetch(pythonApiUrl, {
       method: "POST",
       body: pythonFormData,
     });
 
+    console.log("Python function response status:", pythonResponse.status);
+    console.log("Python function response headers:", Object.fromEntries(pythonResponse.headers.entries()));
+
     if (!pythonResponse.ok) {
-      const errorData = await pythonResponse.json();
-      console.error("Error from Python function:", errorData);
+      // Try to get error as text first in case it's HTML
+      const errorText = await pythonResponse.text();
+      console.error("Error from Python function (status:", pythonResponse.status, "):", errorText);
+      
+      let errorMessage = "Failed to process PDF";
+      try {
+        const errorData = JSON.parse(errorText);
+        errorMessage = errorData.error || errorMessage;
+      } catch {
+        // Not JSON, use the text
+        errorMessage = errorText.substring(0, 200);
+      }
+      
       return NextResponse.json(
-        { error: "Failed to process PDF", details: errorData.error },
+        { error: errorMessage },
         { status: 500 }
       );
     }
 
-    const data = await pythonResponse.json();
+    const responseText = await pythonResponse.text();
+    console.log("Python function response (first 500 chars):", responseText.substring(0, 500));
+    
+    const data = JSON.parse(responseText);
     const { filename, chunks } = data;
 
     try {

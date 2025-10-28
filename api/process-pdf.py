@@ -42,15 +42,24 @@ def generate_embedding(text):
 class handler(BaseHTTPRequestHandler):
     """Vercel serverless function handler"""
     
+    def send_json_error(self, code, message):
+        """Send JSON error response"""
+        self.send_response(code)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        error_data = json.dumps({"error": message})
+        self.wfile.write(error_data.encode())
+    
     def do_POST(self):
         """Handle POST requests for PDF processing"""
         try:
             logger.info("📄 PDF processing request received")
+            logger.info(f"Headers: {dict(self.headers)}")
             
             # Get content type and boundary
             content_type = self.headers.get('Content-Type', '')
             if 'multipart/form-data' not in content_type:
-                self.send_error(400, "Expected multipart/form-data")
+                self.send_json_error(400, "Expected multipart/form-data")
                 return
             
             # Parse boundary
@@ -64,7 +73,7 @@ class handler(BaseHTTPRequestHandler):
             pdf_data = self.parse_multipart(body, boundary)
             
             if not pdf_data:
-                self.send_error(400, "No PDF file found in request")
+                self.send_json_error(400, "No PDF file found in request")
                 return
             
             # Process the PDF
@@ -108,7 +117,9 @@ class handler(BaseHTTPRequestHandler):
             
         except Exception as e:
             logger.error(f"❌ Error processing PDF: {str(e)}")
-            self.send_error(500, f"Error processing PDF: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
+            self.send_json_error(500, f"Error processing PDF: {str(e)}")
     
     def parse_multipart(self, body, boundary):
         """Parse multipart form data to extract PDF"""
