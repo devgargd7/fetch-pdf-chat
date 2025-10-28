@@ -106,12 +106,10 @@ export default function ChatPage() {
   };
 
   const handleNavigateToPage = (pageNumber: number) => {
-    console.log('ChatPage: handleNavigateToPage called with page:', pageNumber);
     setCurrentPage(pageNumber);
   };
 
   const handleClearHighlights = () => {
-    console.log('ChatPage: Clearing all highlights');
     setHighlights([]);
   };
 

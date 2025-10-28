@@ -38,7 +38,6 @@ export async function POST(req: NextRequest) {
 
     // Check if passwords match
     if (password !== confirmPassword) {
-      console.log("Passwords do not match: ", password, confirmPassword);
       return NextResponse.json(
         { error: "Passwords do not match" },
         { status: 400 }

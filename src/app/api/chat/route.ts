@@ -63,7 +63,6 @@ export async function POST(req: NextRequest) {
     });
 
     // Step 1: Create query embedding
-    console.log("Creating query embedding...");
     const embeddingResponse = await fetch(
       "https://api.openai.com/v1/embeddings",
       {
@@ -87,7 +86,6 @@ export async function POST(req: NextRequest) {
     const queryVector = embeddingData.data[0].embedding;
 
     // Step 2: Perform vector search to find relevant chunks
-    console.log("Performing vector search...");
     let relevantChunks: Array<{
       id: string;
       textContent: string;
@@ -127,15 +125,6 @@ export async function POST(req: NextRequest) {
         relevantChunks: [],
         timestamp: new Date().toISOString(),
       });
-    }
-
-    console.log(`Found ${relevantChunks.length} relevant chunks`);
-    for (const chunk of relevantChunks) {
-      console.log(
-        `Chunk ${chunk.pageNumber}: ${
-          chunk.textContent
-        }, Bbox: ${JSON.stringify(chunk.bboxList)}`
-      );
     }
 
     // Step 3: Construct the prompt with context
@@ -204,7 +193,6 @@ User's question: ${userQuery}
 Please provide a helpful response based on the PDF content.`;
 
     // Step 4: Use Vercel AI SDK for proper streaming
-    console.log("Calling OpenAI with streaming...");
 
     const result = await streamText({
       model: openai("gpt-4o-mini"),

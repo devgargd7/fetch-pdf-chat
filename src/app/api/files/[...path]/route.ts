@@ -18,9 +18,6 @@ export async function GET(
     const params = await context.params;
     const filePath = params.path.join("/");
 
-    console.log("Requested file path:", filePath);
-    console.log("User ID:", user.id);
-
     // Security: Ensure the path starts with uploads/{userId} to prevent directory traversal
     if (!filePath.startsWith(`uploads/${user.id}/`)) {
       console.error("Forbidden access attempt:", filePath);
@@ -29,7 +26,6 @@ export async function GET(
 
     // Read the file from the uploads directory
     const fullPath = path.join(process.cwd(), filePath);
-    console.log("Reading file from:", fullPath);
 
     const fileBuffer = await readFile(fullPath);
 

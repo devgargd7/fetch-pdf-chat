@@ -45,8 +45,10 @@ export default function ChatInterface({
   }, [initialMessages])
   
   // Voice interaction
-  const { text: voiceText, isListening, isSupported: isVoiceSupported, startListening, stopListening, setText: setVoiceText } = useSpeechRecognition()
+  const { text: voiceText, isListening, isSupported: isVoiceSupported, error: voiceError, startListening, stopListening, setText: setVoiceText, clearError } = useSpeechRecognition()
   const [isMicPressed, setIsMicPressed] = useState(false)
+  const isHoldingRef = useRef(false)
+  const micButtonRef = useRef<HTMLButtonElement>(null)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -58,10 +60,17 @@ export default function ChatInterface({
 
   // Update input field with voice text as user speaks
   useEffect(() => {
-    if (voiceText && isListening) {
+    if (voiceText) {
       setInput(voiceText)
     }
-  }, [voiceText, isListening])
+  }, [voiceText])
+  
+  // Clear voice text when input is manually cleared
+  useEffect(() => {
+    if (!input && voiceText) {
+      setVoiceText('')
+    }
+  }, [input, voiceText, setVoiceText])
 
   // Speak AI responses as they stream in
   useEffect(() => {
@@ -90,127 +99,86 @@ export default function ChatInterface({
     }
   }, [isListening, stopListening])
 
-  // Microphone handlers
-  const handleMicPress = () => {
-    // Interrupt the AI if it's speaking
+  // Microphone handlers (Pointer Events with capture)
+  const handleMicPress = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault()
+    if (isHoldingRef.current) return
     speechQueue.cancel()
+    clearError()
+    isHoldingRef.current = true
     setIsMicPressed(true)
     startListening()
   }
 
-  const handleMicRelease = () => {
+  const handleMicRelease = (e?: { preventDefault?: () => void }) => {
+    if (!isHoldingRef.current) return
+    if (e && typeof e.preventDefault === 'function') e.preventDefault()
+    isHoldingRef.current = false
     setIsMicPressed(false)
     stopListening()
-    
-    // Submit the transcribed text after a brief delay to ensure final text is captured
-    setTimeout(() => {
-      if (voiceText.trim()) {
-        // Submit to chat
-        handleVoiceSubmit(voiceText)
-        setVoiceText('')
-        setInput('')
-      }
-    }, 500)
   }
 
-  const handleVoiceSubmit = async (text: string) => {
-    if (!isEnabled || !text.trim() || isLoading) return
-    
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: text.trim(),
-      timestamp: new Date()
-    }
-    
-    setMessages(prev => [...prev, userMessage])
-    setIsLoading(true)
-
-    try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messages: [...messages, userMessage],
-          documentId,
-          conversationId
-        })
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to get response')
-      }
-
-      const reader = response.body?.getReader()
-      if (!reader) {
-        throw new Error('No response body')
-      }
-
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: '',
-        timestamp: new Date()
-      }
-
-      setMessages(prev => [...prev, assistantMessage])
-
-      const decoder = new TextDecoder()
-      let done = false
-
-      while (!done) {
-        const { value, done: readerDone } = await reader.read()
-        done = readerDone
-
-        if (value) {
-          const chunk = decoder.decode(value)
-          const lines = chunk.split('\n')
-          
-          for (const line of lines) {
-            if (line.startsWith('0:"')) {
-              const content = line.slice(3, -1) // Remove 0:" and "
-              setMessages(prev => {
-                const updatedMessages = prev.map(msg => 
-                  msg.id === assistantMessage.id 
-                    ? { ...msg, content: msg.content + content }
-                    : msg
-                )
-                
-                // Parse tool calls in real-time as content streams
-                const updatedMessage = updatedMessages.find(msg => msg.id === assistantMessage.id)
-                if (updatedMessage) {
-                  parseToolCalls(updatedMessage.content)
-                }
-                
-                return updatedMessages
-              })
-            }
-          }
-        }
-      }
-
-      // Final parse of tool calls after streaming is complete
-      const finalContent = messages.find(msg => msg.id === assistantMessage.id)?.content || ''
-      parseToolCalls(finalContent)
-    } catch (error) {
-      console.error('Chat error:', error)
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: 'Sorry, I encountered an error. Please try again.',
-        timestamp: new Date()
-      }
-      setMessages(prev => [...prev, errorMessage])
-    } finally {
-      setIsLoading(false)
-    }
+  const handleMicPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    e.preventDefault()
+    try { micButtonRef.current?.setPointerCapture(e.pointerId) } catch {}
+    if (isHoldingRef.current) return
+    speechQueue.cancel()
+    clearError()
+    isHoldingRef.current = true
+    setIsMicPressed(true)
+    startListening()
   }
+
+  const handleMicPointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
+    try { micButtonRef.current?.releasePointerCapture(e.pointerId) } catch {}
+    handleMicRelease(e)
+  }
+
+  const handleMicPointerCancel = (e: React.PointerEvent<HTMLButtonElement>) => {
+    try { micButtonRef.current?.releasePointerCapture(e.pointerId) } catch {}
+    handleMicRelease(e)
+  }
+  
+  // Global mouse/touch/pointer up handler to catch releases outside the button
+  useEffect(() => {
+    const handleGlobalMouseUp = () => {
+      if (isHoldingRef.current) {
+        handleMicRelease()
+      }
+    }
+    
+    const handleGlobalTouchEnd = () => {
+      if (isHoldingRef.current) {
+        handleMicRelease()
+      }
+    }
+    const handleGlobalPointerUp = () => {
+      if (isHoldingRef.current) {
+        handleMicRelease()
+      }
+    }
+    const handleGlobalPointerCancel = () => {
+      if (isHoldingRef.current) {
+        handleMicRelease()
+      }
+    }
+    
+    // Add listeners to window to catch up/cancel anywhere
+    window.addEventListener('mouseup', handleGlobalMouseUp)
+    window.addEventListener('touchend', handleGlobalTouchEnd)
+    window.addEventListener('pointerup', handleGlobalPointerUp)
+    window.addEventListener('pointercancel', handleGlobalPointerCancel)
+    
+    return () => {
+      window.removeEventListener('mouseup', handleGlobalMouseUp)
+      window.removeEventListener('touchend', handleGlobalTouchEnd)
+      window.removeEventListener('pointerup', handleGlobalPointerUp)
+      window.removeEventListener('pointercancel', handleGlobalPointerCancel)
+    }
+  }, [])
 
   // Parse tool calls from AI response
   const parseToolCalls = (content: string) => {
-    console.log('Parsing tool calls from content:', content)
     
     // More flexible regex patterns that handle various formats and spaces
     // Matches: "HIGHLIGHT: 4, 10, 200, 600, 800" or "HIGHLIGHT: 4,10,200,600,800"
@@ -219,12 +187,8 @@ export default function ChatInterface({
     // Match both "NAVIGATE: 4" and "NAVIGATE: page4" or "NAVIGATE: page 4"
     const navigateMatch = content.match(/NAVIGATE:\s*(?:page\s*)?(\d+)/i)
     
-    console.log('Highlight match:', highlightMatch)
-    console.log('Navigate match:', navigateMatch)
-    
     if (highlightMatch) {
       const [, pageNumber, x0, y0, x1, y1] = highlightMatch
-      console.log('Triggering highlight for page:', pageNumber, 'with bbox:', { x0, y0, x1, y1 })
       onHighlight?.([{
         pageNumber: parseInt(pageNumber),
         bbox: { 
@@ -239,19 +203,16 @@ export default function ChatInterface({
     
     if (navigateMatch) {
       const [, pageNumber] = navigateMatch
-      console.log('Triggering navigation to page:', pageNumber)
       onNavigateToPage?.(parseInt(pageNumber))
     }
   }
 
   // Handle pill clicks
   const handleNavigateClick = (pageNumber: number) => {
-    console.log('Pill clicked - navigating to page:', pageNumber)
     onNavigateToPage?.(pageNumber)
   }
 
   const handleHighlightClick = (pageNumber: number, bbox: { x0: number; y0: number; x1: number; y1: number }) => {
-    console.log('Pill clicked - highlighting page:', pageNumber, 'bbox:', bbox)
     onNavigateToPage?.(pageNumber) // First navigate to the page
     onHighlight?.([{
       pageNumber,
@@ -325,6 +286,7 @@ export default function ChatInterface({
     
     setMessages(prev => [...prev, userMessage])
     setInput('')
+    setVoiceText('') // Clear voice text as well
     setIsLoading(true)
 
     try {
@@ -536,16 +498,37 @@ export default function ChatInterface({
 
       {/* Input Form */}
       <div className="p-6 border-t border-slate-200/60 bg-gradient-to-r from-slate-50 to-white flex-shrink-0">
+        {/* Voice Error Alert */}
+        {voiceError && (
+          <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-2">
+            <svg className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div className="flex-1">
+              <p className="text-sm text-red-800">{voiceError}</p>
+            </div>
+            <button
+              onClick={clearError}
+              className="text-red-400 hover:text-red-600 transition-colors"
+              title="Dismiss"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
+        
         <form onSubmit={handleFormSubmit} className="flex space-x-3">
           <div className="flex-1 relative">
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={isListening ? "Listening..." : "Ask a question about the PDF..."}
+              placeholder={isListening ? "Listening... (release to stop)" : "Ask a question or hold the mic to speak..."}
               className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm text-sm ${
                 isListening ? 'border-red-400 ring-2 ring-red-200' : 'border-slate-300'
               }`}
-              disabled={isLoading || isListening}
+              disabled={isLoading}
             />
             {isListening && (
               <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-2">
@@ -561,19 +544,20 @@ export default function ChatInterface({
           {/* Microphone Button (Hold to Talk) */}
           {isVoiceSupported && (
             <button
+              ref={micButtonRef}
               type="button"
               onMouseDown={handleMicPress}
-              onMouseUp={handleMicRelease}
-              onMouseLeave={handleMicRelease}
               onTouchStart={handleMicPress}
-              onTouchEnd={handleMicRelease}
+              onPointerDown={handleMicPointerDown}
+              onPointerUp={handleMicPointerUp}
+              onPointerCancel={handleMicPointerCancel}
               disabled={isLoading}
-              className={`px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl ${
+              className={`px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl select-none ${
                 isListening
                   ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white ring-2 ring-red-300 scale-110'
                   : 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:from-purple-600 hover:to-indigo-700'
               }`}
-              title="Hold to talk"
+              title="Hold to talk - release anywhere to stop"
             >
               {isListening ? (
                 <svg className="w-5 h-5 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
@@ -612,7 +596,7 @@ export default function ChatInterface({
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <span>💡 {isVoiceSupported ? 'Hold the mic to talk or type your question' : 'Try asking: "What is this document about?"'}</span>
+              <span>💡 {isVoiceSupported ? 'Hold mic to speak, release to stop, then press Send' : 'Try asking: "What is this document about?"'}</span>
             </span>
           </div>
           <div className="flex items-center space-x-3">

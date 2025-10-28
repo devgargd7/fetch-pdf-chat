@@ -7,7 +7,7 @@ class SpeechSynthesisQueue {
   private speakingTimeout: NodeJS.Timeout | null;
 
   constructor() {
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && window.speechSynthesis) {
       this.synth = window.speechSynthesis;
     } else {
       this.synth = null as any;
@@ -20,17 +20,32 @@ class SpeechSynthesisQueue {
   }
 
   /**
+   * Check if speech synthesis is available and ready
+   */
+  private isReady(): boolean {
+    return !!(this.synth && typeof this.synth.speak === "function");
+  }
+
+  /**
    * Speak text immediately, interrupting any ongoing speech
    */
   speak(text: string) {
-    if (!this.synth) return;
+    if (!this.isReady()) {
+      console.warn("Speech synthesis is not available");
+      return;
+    }
 
     // Cancel any ongoing speech
-    if (this.synth.speaking) {
-      this.synth.cancel();
-      this.isSpeaking = false;
-      this.utteranceQueue = [];
-      this.sentenceBuffer = "";
+    try {
+      if (this.synth.speaking) {
+        this.synth.cancel();
+        this.isSpeaking = false;
+        this.utteranceQueue = [];
+        this.sentenceBuffer = "";
+      }
+    } catch (err) {
+      console.error("Error canceling speech:", err);
+      return;
     }
 
     // Split text into sentences to create a more natural, streaming feel
@@ -48,8 +63,14 @@ class SpeechSynthesisQueue {
         utterance.onend = () => {
           // When one sentence ends, speak the next one in the queue
           this.utteranceQueue.shift();
-          if (this.utteranceQueue.length > 0) {
-            this.synth.speak(this.utteranceQueue[0]);
+          if (this.utteranceQueue.length > 0 && this.isReady()) {
+            try {
+              this.synth.speak(this.utteranceQueue[0]);
+            } catch (err) {
+              console.error("Error speaking next utterance:", err);
+              this.isSpeaking = false;
+              this.currentUtterance = null;
+            }
           } else {
             this.isSpeaking = false;
             this.currentUtterance = null;
@@ -57,10 +78,23 @@ class SpeechSynthesisQueue {
         };
 
         utterance.onerror = (event) => {
-          console.error("Speech synthesis error:", event);
+          // Only log if there's a meaningful error
+          if (
+            event.error &&
+            event.error !== "interrupted" &&
+            event.error !== "canceled"
+          ) {
+            console.error("Speech synthesis error:", event.error, event);
+          }
           this.utteranceQueue.shift();
-          if (this.utteranceQueue.length > 0) {
-            this.synth.speak(this.utteranceQueue[0]);
+          if (this.utteranceQueue.length > 0 && this.isReady()) {
+            try {
+              this.synth.speak(this.utteranceQueue[0]);
+            } catch (err) {
+              console.error("Error speaking after error:", err);
+              this.isSpeaking = false;
+              this.currentUtterance = null;
+            }
           } else {
             this.isSpeaking = false;
             this.currentUtterance = null;
@@ -75,7 +109,13 @@ class SpeechSynthesisQueue {
     if (!this.isSpeaking && this.utteranceQueue.length > 0) {
       this.isSpeaking = true;
       this.currentUtterance = this.utteranceQueue[0];
-      this.synth.speak(this.currentUtterance);
+      try {
+        this.synth.speak(this.currentUtterance);
+      } catch (err) {
+        console.error("Error starting speech:", err);
+        this.isSpeaking = false;
+        this.currentUtterance = null;
+      }
     }
   }
 
@@ -84,7 +124,7 @@ class SpeechSynthesisQueue {
    * This is perfect for streaming responses
    */
   speakStream(chunk: string) {
-    if (!this.synth) return;
+    if (!this.isReady()) return;
 
     this.sentenceBuffer += chunk;
 
@@ -115,8 +155,14 @@ class SpeechSynthesisQueue {
 
         utterance.onend = () => {
           this.utteranceQueue.shift();
-          if (this.utteranceQueue.length > 0) {
-            this.synth.speak(this.utteranceQueue[0]);
+          if (this.utteranceQueue.length > 0 && this.isReady()) {
+            try {
+              this.synth.speak(this.utteranceQueue[0]);
+            } catch (err) {
+              console.error("Error speaking next utterance:", err);
+              this.isSpeaking = false;
+              this.currentUtterance = null;
+            }
           } else {
             this.isSpeaking = false;
             this.currentUtterance = null;
@@ -124,10 +170,23 @@ class SpeechSynthesisQueue {
         };
 
         utterance.onerror = (event) => {
-          console.error("Speech synthesis error:", event);
+          // Only log if there's a meaningful error
+          if (
+            event.error &&
+            event.error !== "interrupted" &&
+            event.error !== "canceled"
+          ) {
+            console.error("Speech synthesis error:", event.error, event);
+          }
           this.utteranceQueue.shift();
-          if (this.utteranceQueue.length > 0) {
-            this.synth.speak(this.utteranceQueue[0]);
+          if (this.utteranceQueue.length > 0 && this.isReady()) {
+            try {
+              this.synth.speak(this.utteranceQueue[0]);
+            } catch (err) {
+              console.error("Error speaking after error:", err);
+              this.isSpeaking = false;
+              this.currentUtterance = null;
+            }
           } else {
             this.isSpeaking = false;
             this.currentUtterance = null;
@@ -142,7 +201,13 @@ class SpeechSynthesisQueue {
     if (!this.isSpeaking && this.utteranceQueue.length > 0) {
       this.isSpeaking = true;
       this.currentUtterance = this.utteranceQueue[0];
-      this.synth.speak(this.currentUtterance);
+      try {
+        this.synth.speak(this.currentUtterance);
+      } catch (err) {
+        console.error("Error starting speech:", err);
+        this.isSpeaking = false;
+        this.currentUtterance = null;
+      }
     }
   }
 
@@ -159,9 +224,14 @@ class SpeechSynthesisQueue {
    * Cancel all ongoing and queued speech
    */
   cancel() {
-    if (!this.synth) return;
+    if (!this.isReady()) return;
 
-    this.synth.cancel();
+    try {
+      this.synth.cancel();
+    } catch (err) {
+      console.error("Error canceling speech:", err);
+    }
+
     this.isSpeaking = false;
     this.utteranceQueue = [];
     this.currentUtterance = null;
@@ -186,7 +256,7 @@ class SpeechSynthesisQueue {
   private splitIntoSentences(text: string): string[] {
     // Match sentences ending with . ! ? followed by space or end of string
     // This regex handles common abbreviations better
-    const sentences = text.match(/[^.!?]+[.!?]+(?:\s|$)/g) || [];
+    const sentences: string[] = text.match(/[^.!?]+[.!?]+(?:\s|$)/g) || [];
 
     // If there's remaining text without punctuation, add it as the last sentence
     const lastIndex = sentences.join("").length;

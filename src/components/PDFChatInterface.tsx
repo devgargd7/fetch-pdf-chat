@@ -23,11 +23,9 @@ export default function PDFChatInterface({ onFileUpload, uploadedFile }: PDFChat
   const handleUploadSuccess = (data: any) => {
     setDocumentData(data)
     setUploadError(null)
-    console.log('Upload successful:', data)
     
     // Show success message in chat
     if (data.success) {
-      console.log(`PDF "${data.filename}" processed successfully with ${data.chunksCount} chunks`)
     }
   }
 
@@ -45,13 +43,10 @@ export default function PDFChatInterface({ onFileUpload, uploadedFile }: PDFChat
   }
 
   const handleNavigateToPage = (pageNumber: number) => {
-    console.log('PDFChatInterface: handleNavigateToPage called with page:', pageNumber)
     setCurrentPage(pageNumber)
-    console.log('PDFChatInterface: currentPage set to:', pageNumber)
   }
 
   const handleClearHighlights = () => {
-    console.log('PDFChatInterface: Clearing all highlights')
     setHighlights([])
   }
 

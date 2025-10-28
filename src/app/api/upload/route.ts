@@ -63,12 +63,6 @@ export async function POST(request: NextRequest) {
     const data = await pythonResponse.json();
     const { filename, chunks } = data;
 
-    console.log("PDF processed successfully:", {
-      filename,
-      chunksCount: chunks.length,
-      sampleChunk: chunks[0], // Log first chunk as example
-    });
-
     try {
       // Save file to filesystem
       const bytes = await file.arrayBuffer();

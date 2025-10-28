@@ -12,6 +12,8 @@ if (typeof window !== 'undefined') {
   import('react-pdf').then(({ pdfjs }) => {
     // Use the worker from react-pdf package to avoid CORS issues
     pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
+  }).catch(err => {
+    console.error('Failed to load PDF.js worker:', err)
   })
 }
 
@@ -33,17 +35,29 @@ export default function PDFViewer({ file, onPageChange, highlights = [], current
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isClient, setIsClient] = useState(false)
+  const [workerReady, setWorkerReady] = useState(false)
   const pageRefs = useRef<{ [key: number]: HTMLDivElement | null }>({})
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setIsClient(true)
+    // Ensure worker is loaded
+    if (typeof window !== 'undefined') {
+      import('react-pdf').then(({ pdfjs }) => {
+        if (!pdfjs.GlobalWorkerOptions.workerSrc) {
+          pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
+        }
+        setWorkerReady(true)
+      }).catch(err => {
+        console.error('Failed to load PDF.js worker:', err)
+        setError('Failed to initialize PDF viewer')
+      })
+    }
   }, [])
 
   // Smooth scroll to page when currentPage prop changes
   useEffect(() => {
     if (currentPage && pageRefs.current[currentPage] && scrollContainerRef.current) {
-      console.log('PDFViewer: Scrolling to page:', currentPage)
       const pageElement = pageRefs.current[currentPage]
       if (pageElement) {
         pageElement.scrollIntoView({ 
@@ -83,7 +97,7 @@ export default function PDFViewer({ file, onPageChange, highlights = [], current
     pageRefs.current[pageNumber] = element
   }, [])
 
-  if (!isClient) {
+  if (!isClient || !workerReady) {
     return (
       <div className="flex items-center justify-center h-full bg-gray-50 rounded-lg">
         <div className="text-center">
@@ -228,6 +242,16 @@ export default function PDFViewer({ file, onPageChange, highlights = [], current
                       className="shadow-2xl rounded-lg"
                       renderTextLayer={false}
                       renderAnnotationLayer={false}
+                      loading={
+                        <div className="flex items-center justify-center h-96 bg-gray-100 rounded-lg">
+                          <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-300 border-t-blue-600"></div>
+                        </div>
+                      }
+                      error={
+                        <div className="flex items-center justify-center h-96 bg-red-50 rounded-lg">
+                          <p className="text-red-600 text-sm">Failed to load page {pageNum}</p>
+                        </div>
+                      }
                     />
 
                     {/* Enhanced Highlights Overlay */}
