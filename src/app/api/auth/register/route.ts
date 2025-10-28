@@ -8,6 +8,8 @@ import {
 } from "@/lib/auth";
 import { setSessionCookie } from "@/lib/session";
 
+export const runtime = "nodejs";
+
 export async function POST(req: NextRequest) {
   try {
     const { email, password, confirmPassword } = await req.json();

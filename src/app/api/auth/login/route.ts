@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { verifyPassword, generateToken, isValidEmail } from "@/lib/auth";
 import { setSessionCookie } from "@/lib/session";
 
+export const runtime = "nodejs";
+
 export async function POST(req: NextRequest) {
   try {
     const { email, password } = await req.json();

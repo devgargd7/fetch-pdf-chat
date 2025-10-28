@@ -5,6 +5,14 @@ const nextConfig: NextConfig = {
     // Ensure Prisma packages remain external so their runtime engines are bundled correctly in Lambdas
     serverComponentsExternalPackages: ["@prisma/client", "prisma"],
   },
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      // Use Prisma's official plugin to copy engine files to Lambda
+      const { PrismaPlugin } = require("@prisma/nextjs-monorepo-workaround-plugin");
+      config.plugins = [...config.plugins, new PrismaPlugin()];
+    }
+    return config;
+  },
 };
 
 export default nextConfig;
