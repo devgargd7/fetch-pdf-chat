@@ -71,10 +71,8 @@ export default function ChatPage() {
       const data = await response.json();
       setConversation(data.conversation);
       
-      // Load the PDF file (skip if no filePath since we're not storing files in serverless)
-      if (data.conversation.document.filePath) {
-        await loadPDFFile(data.conversation.document.filePath);
-      }
+      // Load the PDF file from database
+      await loadPDFFromDatabase(data.conversation.documentId);
     } catch (err) {
       console.error("Failed to fetch conversation:", err);
       setError("Failed to load conversation");
@@ -83,16 +81,16 @@ export default function ChatPage() {
     }
   };
 
-  const loadPDFFile = async (filePath: string) => {
+  const loadPDFFromDatabase = async (documentId: string) => {
     try {
-      // Fetch the PDF file from the API route
-      const response = await fetch(`/api/files/${filePath}`);
+      // Fetch the PDF file from the database
+      const response = await fetch(`/api/documents/${documentId}/pdf`);
       if (response.ok) {
         const blob = await response.blob();
-        const file = new File([blob], filePath.split('/').pop() || 'document.pdf', { type: 'application/pdf' });
+        const file = new File([blob], 'document.pdf', { type: 'application/pdf' });
         setPdfFile(file);
       } else {
-        console.error("Failed to load PDF file:", response.statusText);
+        console.log("PDF not available in database");
       }
     } catch (error) {
       console.error("Failed to load PDF file:", error);

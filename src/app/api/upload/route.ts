@@ -113,13 +113,16 @@ export async function POST(request: NextRequest) {
     const { filename, chunks } = data;
 
     try {
-      // Create the document (no file storage in serverless environment)
-      // Note: filePath is nullable in schema, so we can omit it
+      // Save PDF binary to database
+      const bytes = await file.arrayBuffer();
+      const buffer = Buffer.from(bytes);
+
+      // Create the document with PDF binary stored in database
       const document = await prisma.document.create({
         data: {
           filename: filename || file.name,
           userId: user.id,
-          // filePath is optional - we're not storing files in serverless
+          fileData: buffer, // Store PDF as binary in database
         },
       });
 
