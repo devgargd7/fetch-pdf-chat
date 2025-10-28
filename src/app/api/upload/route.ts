@@ -50,20 +50,27 @@ export async function POST(request: NextRequest) {
   try {
     // Call the Python PDF processing function
     console.log("Calling Python function at:", pythonApiUrl);
-    
+
     // In production, use internal Vercel network (bypasses auth)
-    const fetchUrl = process.env.NODE_ENV === "production" 
-      ? `https://${process.env.VERCEL_URL || host}/api/process-pdf`
-      : pythonApiUrl;
-    
+    const fetchUrl =
+      process.env.NODE_ENV === "production"
+        ? `https://${process.env.VERCEL_URL || host}/api/process-pdf`
+        : pythonApiUrl;
+
     console.log("Fetch URL:", fetchUrl);
-    
+
     pythonResponse = await fetch(fetchUrl, {
       method: "POST",
       body: pythonFormData,
       headers: {
         // Forward auth headers if present
-        ...(request.headers.get("cookie") ? { cookie: request.headers.get("cookie") || "" } : {}),
+        ...(request.headers.get("cookie")
+          ? { cookie: request.headers.get("cookie") || "" }
+          : {}),
+        // Add Vercel protection bypass header for internal API calls
+        ...(process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+          ? { "x-vercel-protection-bypass": process.env.VERCEL_AUTOMATION_BYPASS_SECRET }
+          : {}),
       },
     });
 
