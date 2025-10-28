@@ -1,10 +1,10 @@
-from http.server import BaseHTTPRequestHandler
+import cgi
+import io
 import json
 import logging
 import os
 import sys
-import cgi
-import io
+from http.server import BaseHTTPRequestHandler
 
 import fitz  # PyMuPDF
 from openai import OpenAI
