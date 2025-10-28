@@ -8,7 +8,9 @@ const nextConfig: NextConfig = {
   webpack: (config, { isServer }) => {
     if (isServer) {
       // Use Prisma's official plugin to copy engine files to Lambda
-      const { PrismaPlugin } = require("@prisma/nextjs-monorepo-workaround-plugin");
+      const {
+        PrismaPlugin,
+      } = require("@prisma/nextjs-monorepo-workaround-plugin");
       config.plugins = [...config.plugins, new PrismaPlugin()];
     }
     return config;
