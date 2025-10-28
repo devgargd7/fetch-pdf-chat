@@ -71,8 +71,10 @@ export default function ChatPage() {
       const data = await response.json();
       setConversation(data.conversation);
       
-      // Load the PDF file
-      await loadPDFFile(data.conversation.document.filePath);
+      // Load the PDF file (skip if no filePath since we're not storing files in serverless)
+      if (data.conversation.document.filePath) {
+        await loadPDFFile(data.conversation.document.filePath);
+      }
     } catch (err) {
       console.error("Failed to fetch conversation:", err);
       setError("Failed to load conversation");
@@ -178,6 +180,14 @@ export default function ChatPage() {
                 currentPage={currentPage}
                 onClearHighlights={handleClearHighlights}
               />
+            ) : conversation.document.filePath === null ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <p className="text-gray-400 text-lg mb-2">PDF Preview Not Available</p>
+                  <p className="text-gray-500 text-sm">File storage is not enabled in serverless mode</p>
+                  <p className="text-gray-500 text-sm">You can still chat with the document using the extracted text</p>
+                </div>
+              </div>
             ) : (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center">

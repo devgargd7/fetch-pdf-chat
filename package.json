@@ -7,7 +7,7 @@
     "dev:full": "concurrently \"npm run dev\" \"npm run python:dev\"",
     "python:dev": "./start-python-server.sh",
     "build": "prisma generate --no-engine && next build",
-    "postinstall": "prisma generate --no-engine && prisma migrate deploy",
+    "postinstall": "prisma generate --no-engine",
     "start": "next start",
     "lint": "eslint",
     "db:generate": "prisma generate",
