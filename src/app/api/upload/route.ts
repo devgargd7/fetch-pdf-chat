@@ -50,9 +50,21 @@ export async function POST(request: NextRequest) {
   try {
     // Call the Python PDF processing function
     console.log("Calling Python function at:", pythonApiUrl);
-    pythonResponse = await fetch(pythonApiUrl, {
+    
+    // In production, use internal Vercel network (bypasses auth)
+    const fetchUrl = process.env.NODE_ENV === "production" 
+      ? `https://${process.env.VERCEL_URL || host}/api/process-pdf`
+      : pythonApiUrl;
+    
+    console.log("Fetch URL:", fetchUrl);
+    
+    pythonResponse = await fetch(fetchUrl, {
       method: "POST",
       body: pythonFormData,
+      headers: {
+        // Forward auth headers if present
+        ...(request.headers.get("cookie") ? { cookie: request.headers.get("cookie") || "" } : {}),
+      },
     });
 
     console.log("Python function response status:", pythonResponse.status);
