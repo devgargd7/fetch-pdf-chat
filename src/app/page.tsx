@@ -1,31 +1,19 @@
 'use client'
 
-import { useState } from 'react'
-import PDFChatInterface from '@/components/PDFChatInterface'
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 
 export default function Home() {
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const router = useRouter()
 
-  const handleFileUpload = (file: File) => {
-    setUploadedFile(file)
-  }
+  useEffect(() => {
+    // Redirect to dashboard (middleware will redirect to login if not authenticated)
+    router.push('/dashboard')
+  }, [router])
 
   return (
-    <div className="h-screen overflow-hidden">
-      <div className="h-full">
-        <div className="bg-white border-b border-gray-300 p-4">
-          <h1 className="text-2xl font-bold text-gray-900 text-center">
-            AI PDF Chat Interface
-          </h1>
-          <p className="text-sm text-gray-600 text-center mt-1">
-            Upload a PDF and chat with it using AI - with semantic search and highlights
-          </p>
-        </div>
-        <PDFChatInterface
-          onFileUpload={handleFileUpload}
-          uploadedFile={uploadedFile}
-        />
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+      <div className="text-white text-xl">Loading...</div>
     </div>
   )
 }

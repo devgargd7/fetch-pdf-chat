@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useSpeechRecognition } from '@/hooks/useSpeechRecognition'
+import { speechQueue } from '@/utils/speechSynthesis'
 
 interface Message {
   id: string
@@ -11,6 +13,8 @@ interface Message {
 
 interface ChatInterfaceProps {
   documentId?: string
+  conversationId?: string
+  initialMessages?: Message[]
   isEnabled?: boolean
   onHighlight?: (highlights: Array<{
     pageNumber: number
@@ -22,14 +26,27 @@ interface ChatInterfaceProps {
 
 export default function ChatInterface({ 
   documentId, 
+  conversationId,
+  initialMessages = [],
   isEnabled = true, 
   onHighlight,
   onNavigateToPage
 }: ChatInterfaceProps) {
-  const [messages, setMessages] = useState<Message[]>([])
+  const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  
+  // Update messages when initialMessages change
+  useEffect(() => {
+    if (initialMessages.length > 0) {
+      setMessages(initialMessages)
+    }
+  }, [initialMessages])
+  
+  // Voice interaction
+  const { text: voiceText, isListening, isSupported: isVoiceSupported, startListening, stopListening, setText: setVoiceText } = useSpeechRecognition()
+  const [isMicPressed, setIsMicPressed] = useState(false)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -38,6 +55,158 @@ export default function ChatInterface({
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  // Update input field with voice text as user speaks
+  useEffect(() => {
+    if (voiceText && isListening) {
+      setInput(voiceText)
+    }
+  }, [voiceText, isListening])
+
+  // Speak AI responses as they stream in
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1]
+    if (lastMessage && lastMessage.role === 'assistant' && lastMessage.content) {
+      // Cancel any ongoing speech when new AI message starts
+      if (messages.length > 1) {
+        const prevLastMessage = messages[messages.length - 2]
+        if (!prevLastMessage || prevLastMessage.role !== 'assistant') {
+          speechQueue.cancel()
+        }
+      }
+      
+      // Stream the speech as content arrives
+      speechQueue.speak(lastMessage.content)
+    }
+  }, [messages])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      speechQueue.cancel()
+      if (isListening) {
+        stopListening()
+      }
+    }
+  }, [isListening, stopListening])
+
+  // Microphone handlers
+  const handleMicPress = () => {
+    // Interrupt the AI if it's speaking
+    speechQueue.cancel()
+    setIsMicPressed(true)
+    startListening()
+  }
+
+  const handleMicRelease = () => {
+    setIsMicPressed(false)
+    stopListening()
+    
+    // Submit the transcribed text after a brief delay to ensure final text is captured
+    setTimeout(() => {
+      if (voiceText.trim()) {
+        // Submit to chat
+        handleVoiceSubmit(voiceText)
+        setVoiceText('')
+        setInput('')
+      }
+    }, 500)
+  }
+
+  const handleVoiceSubmit = async (text: string) => {
+    if (!isEnabled || !text.trim() || isLoading) return
+    
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: text.trim(),
+      timestamp: new Date()
+    }
+    
+    setMessages(prev => [...prev, userMessage])
+    setIsLoading(true)
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: [...messages, userMessage],
+          documentId,
+          conversationId
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to get response')
+      }
+
+      const reader = response.body?.getReader()
+      if (!reader) {
+        throw new Error('No response body')
+      }
+
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: '',
+        timestamp: new Date()
+      }
+
+      setMessages(prev => [...prev, assistantMessage])
+
+      const decoder = new TextDecoder()
+      let done = false
+
+      while (!done) {
+        const { value, done: readerDone } = await reader.read()
+        done = readerDone
+
+        if (value) {
+          const chunk = decoder.decode(value)
+          const lines = chunk.split('\n')
+          
+          for (const line of lines) {
+            if (line.startsWith('0:"')) {
+              const content = line.slice(3, -1) // Remove 0:" and "
+              setMessages(prev => {
+                const updatedMessages = prev.map(msg => 
+                  msg.id === assistantMessage.id 
+                    ? { ...msg, content: msg.content + content }
+                    : msg
+                )
+                
+                // Parse tool calls in real-time as content streams
+                const updatedMessage = updatedMessages.find(msg => msg.id === assistantMessage.id)
+                if (updatedMessage) {
+                  parseToolCalls(updatedMessage.content)
+                }
+                
+                return updatedMessages
+              })
+            }
+          }
+        }
+      }
+
+      // Final parse of tool calls after streaming is complete
+      const finalContent = messages.find(msg => msg.id === assistantMessage.id)?.content || ''
+      parseToolCalls(finalContent)
+    } catch (error) {
+      console.error('Chat error:', error)
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: 'Sorry, I encountered an error. Please try again.',
+        timestamp: new Date()
+      }
+      setMessages(prev => [...prev, errorMessage])
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   // Parse tool calls from AI response
   const parseToolCalls = (content: string) => {
@@ -166,7 +335,8 @@ export default function ChatInterface({
         },
         body: JSON.stringify({
           messages: [...messages, userMessage],
-          documentId
+          documentId,
+          conversationId
         })
       })
 
@@ -294,9 +464,9 @@ export default function ChatInterface({
   }
 
   return (
-    <div className="flex flex-col bg-white rounded-2xl shadow-lg border border-slate-200/60 overflow-hidden">
+    <div className="flex flex-col h-full bg-white rounded-2xl shadow-lg border border-slate-200/60 overflow-hidden">
       {/* Chat Header */}
-      <div className="p-6 border-b border-slate-200/60 bg-gradient-to-r from-slate-50 to-white">
+      <div className="p-6 border-b border-slate-200/60 bg-gradient-to-r from-slate-50 to-white flex-shrink-0">
         <div className="flex items-center space-x-3">
           <div className="p-2 bg-green-100 rounded-lg">
             <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -365,22 +535,59 @@ export default function ChatInterface({
       </div>
 
       {/* Input Form */}
-      <div className="p-6 border-t border-slate-200/60 bg-gradient-to-r from-slate-50 to-white">
+      <div className="p-6 border-t border-slate-200/60 bg-gradient-to-r from-slate-50 to-white flex-shrink-0">
         <form onSubmit={handleFormSubmit} className="flex space-x-3">
           <div className="flex-1 relative">
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask a question about the PDF..."
-              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm text-sm"
-              disabled={isLoading}
+              placeholder={isListening ? "Listening..." : "Ask a question about the PDF..."}
+              className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm text-sm ${
+                isListening ? 'border-red-400 ring-2 ring-red-200' : 'border-slate-300'
+              }`}
+              disabled={isLoading || isListening}
             />
-            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-              <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-            </div>
+            {isListening && (
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-2">
+                <div className="flex space-x-1">
+                  <div className="w-1 h-4 bg-red-500 rounded-full animate-pulse" style={{ animationDelay: '0ms' }}></div>
+                  <div className="w-1 h-4 bg-red-500 rounded-full animate-pulse" style={{ animationDelay: '150ms' }}></div>
+                  <div className="w-1 h-4 bg-red-500 rounded-full animate-pulse" style={{ animationDelay: '300ms' }}></div>
+                </div>
+              </div>
+            )}
           </div>
+          
+          {/* Microphone Button (Hold to Talk) */}
+          {isVoiceSupported && (
+            <button
+              type="button"
+              onMouseDown={handleMicPress}
+              onMouseUp={handleMicRelease}
+              onMouseLeave={handleMicRelease}
+              onTouchStart={handleMicPress}
+              onTouchEnd={handleMicRelease}
+              disabled={isLoading}
+              className={`px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl ${
+                isListening
+                  ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white ring-2 ring-red-300 scale-110'
+                  : 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:from-purple-600 hover:to-indigo-700'
+              }`}
+              title="Hold to talk"
+            >
+              {isListening ? (
+                <svg className="w-5 h-5 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                  <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+              )}
+            </button>
+          )}
+          
           <button
             type="submit"
             disabled={!input.trim() || isLoading}
@@ -405,12 +612,22 @@ export default function ChatInterface({
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <span>💡 Try asking: "What is this document about?" or "Summarize the main points"</span>
+              <span>💡 {isVoiceSupported ? 'Hold the mic to talk or type your question' : 'Try asking: "What is this document about?"'}</span>
             </span>
           </div>
-          <div className="flex items-center space-x-1">
-            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-            <span>AI Ready</span>
+          <div className="flex items-center space-x-3">
+            {isVoiceSupported && (
+              <div className="flex items-center space-x-1">
+                <svg className="w-3 h-3 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+                <span>Voice Enabled</span>
+              </div>
+            )}
+            <div className="flex items-center space-x-1">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              <span>AI Ready</span>
+            </div>
           </div>
         </div>
       </div>

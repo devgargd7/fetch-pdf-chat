@@ -4,10 +4,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/session";
+import { writeFile, mkdir } from "fs/promises";
+import path from "path";
 
 // This function processes the PDF by forwarding it to our Python function.
 // We get back the structured data (chunks) and save it to our Postgres DB.
 export async function POST(request: NextRequest) {
+  // Check authentication
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const formData = await request.formData();
   const file = formData.get("file") as File;
 
@@ -54,18 +63,42 @@ export async function POST(request: NextRequest) {
     const data = await pythonResponse.json();
     const { filename, chunks } = data;
 
-    // For now, return the processed data without database storage
-    // TODO: Set up PostgreSQL database for persistent storage
     console.log("PDF processed successfully:", {
       filename,
       chunksCount: chunks.length,
       sampleChunk: chunks[0], // Log first chunk as example
     });
+
     try {
+      // Save file to filesystem
+      const bytes = await file.arrayBuffer();
+      const buffer = Buffer.from(bytes);
+
+      // Create uploads directory if it doesn't exist
+      const uploadsDir = path.join(process.cwd(), "uploads", user.id);
+      await mkdir(uploadsDir, { recursive: true });
+
+      // Generate unique filename
+      const timestamp = Date.now();
+      const safeFilename = filename.replace(/[^a-zA-Z0-9.-]/g, "_");
+      const filePath = path.join(uploadsDir, `${timestamp}_${safeFilename}`);
+
+      // Write file to disk
+      await writeFile(filePath, buffer);
+
+      // Store relative path for portability
+      const relativeFilePath = path.join(
+        "uploads",
+        user.id,
+        `${timestamp}_${safeFilename}`
+      );
+
       // First create the document
       const document = await prisma.document.create({
         data: {
           filename: filename,
+          filePath: relativeFilePath,
+          userId: user.id,
         },
       });
 

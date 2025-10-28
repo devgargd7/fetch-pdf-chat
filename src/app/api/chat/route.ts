@@ -2,15 +2,47 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { streamText } from "ai";
 import { openai } from "@ai-sdk/openai";
+import { getCurrentUser } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages, documentId } = await req.json();
+    // Check authentication
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { messages, documentId, conversationId } = await req.json();
 
     if (!messages || messages.length === 0) {
       return NextResponse.json(
         { error: "No messages provided" },
         { status: 400 }
+      );
+    }
+
+    if (!conversationId) {
+      return NextResponse.json(
+        { error: "Conversation ID is required" },
+        { status: 400 }
+      );
+    }
+
+    // Verify conversation belongs to user
+    const conversation = await prisma.conversation.findFirst({
+      where: {
+        id: conversationId,
+        userId: user.id,
+      },
+      include: {
+        document: true,
+      },
+    });
+
+    if (!conversation) {
+      return NextResponse.json(
+        { error: "Conversation not found" },
+        { status: 404 }
       );
     }
 
@@ -20,6 +52,15 @@ export async function POST(req: NextRequest) {
     if (!userQuery) {
       return NextResponse.json({ error: "No query provided" }, { status: 400 });
     }
+
+    // Save user message to database
+    await prisma.message.create({
+      data: {
+        role: "user",
+        content: userQuery,
+        conversationId,
+      },
+    });
 
     // Step 1: Create query embedding
     console.log("Creating query embedding...");
@@ -72,7 +113,7 @@ export async function POST(req: NextRequest) {
           "bboxList",
           embedding <=> ${JSON.stringify(queryVector)}::vector as distance
         FROM "Chunk"
-        WHERE "documentId" = ${documentId || "null"}
+        WHERE "documentId" = ${conversation.document.id}
         ORDER BY embedding <=> ${JSON.stringify(queryVector)}::vector
         LIMIT 5
       `;
@@ -127,7 +168,7 @@ Instructions:
 - Keep responses concise but informative
 
 IMPORTANT - Tool Commands:
-It is always recommended to use special commands while responding to the user's question to help users navigate and visualize the document:
+Always use below special commands while responding to the user's question to help users navigate and visualize the document:
 
 1. To navigate to a specific page, include on a NEW LINE:
    NAVIGATE: <page_number>
@@ -182,14 +223,33 @@ Please provide a helpful response based on the PDF content.`;
 
     // Create a custom stream that matches the frontend's expected format
     const encoder = new TextEncoder();
+    let fullResponse = "";
+
     const stream = new ReadableStream({
       async start(controller) {
         try {
           for await (const chunk of result.textStream) {
+            fullResponse += chunk;
             // Send each chunk in the format expected by the frontend: 0:"content"
             const formattedChunk = `0:"${chunk}"\n`;
             controller.enqueue(encoder.encode(formattedChunk));
           }
+
+          // Save assistant message to database
+          await prisma.message.create({
+            data: {
+              role: "assistant",
+              content: fullResponse,
+              conversationId,
+            },
+          });
+
+          // Update conversation's updatedAt timestamp
+          await prisma.conversation.update({
+            where: { id: conversationId },
+            data: { updatedAt: new Date() },
+          });
+
           // Send completion signal
           controller.enqueue(encoder.encode(`d:{"finishReason":"stop"}\n`));
           controller.close();

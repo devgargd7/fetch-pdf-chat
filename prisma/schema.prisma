@@ -15,28 +15,66 @@ datasource db {
 }
 
 model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  password      String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  sessions      Session[]
+  documents     Document[]
+  conversations Conversation[]
+}
+
+model Session {
   id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Document {
-  id        String   @id @default(cuid())
-  filename  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  chunks    Chunk[]
+  id            String         @id @default(cuid())
+  filename      String
+  filePath      String         // Path where file is stored
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  chunks        Chunk[]
+  conversations Conversation[]
+}
+
+model Conversation {
+  id         String    @id @default(cuid())
+  title      String    @default("New Conversation")
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentId String
+  document   Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  messages   Message[]
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  role           String       // "user" or "assistant"
+  content        String
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
 }
 
 model Chunk {
-  id          String   @id @default(cuid())
+  id          String                       @id @default(cuid())
   pageNumber  Int
   textContent String
-  bboxList    Json     // Store bounding box data as JSON
+  bboxList    Json                         // Store bounding box data as JSON
   documentId  String
-  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now())
-  embedding    Unsupported("vector(1536)")? // OpenAI text-embedding-3-small dimension 
+  document    Document                     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt   DateTime                     @default(now())
+  embedding   Unsupported("vector(1536)")? // OpenAI text-embedding-3-small dimension 
 }
