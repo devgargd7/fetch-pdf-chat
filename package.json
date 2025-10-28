@@ -6,8 +6,8 @@
     "dev": "next dev",
     "dev:full": "concurrently \"npm run dev\" \"npm run python:dev\"",
     "python:dev": "./start-python-server.sh",
-    "build": "next build",
-    "postinstall": "prisma generate",
+    "build": "prisma generate --no-engine && next build",
+    "postinstall": "prisma generate --no-engine",
     "start": "next start",
     "lint": "eslint",
     "db:generate": "prisma generate",
@@ -19,6 +19,7 @@
   "dependencies": {
     "@ai-sdk/openai": "^2.0.53",
     "@prisma/client": "^6.18.0",
+    "@prisma/extension-accelerate": "^2.0.2",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.0.0",
