@@ -5,8 +5,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -69,7 +67,10 @@ export async function POST(request: NextRequest) {
           : {}),
         // Add Vercel protection bypass header for internal API calls
         ...(process.env.VERCEL_AUTOMATION_BYPASS_SECRET
-          ? { "x-vercel-protection-bypass": process.env.VERCEL_AUTOMATION_BYPASS_SECRET }
+          ? {
+              "x-vercel-protection-bypass":
+                process.env.VERCEL_AUTOMATION_BYPASS_SECRET,
+            }
           : {}),
       },
     });
@@ -112,35 +113,13 @@ export async function POST(request: NextRequest) {
     const { filename, chunks } = data;
 
     try {
-      // Save file to filesystem
-      const bytes = await file.arrayBuffer();
-      const buffer = Buffer.from(bytes);
-
-      // Create uploads directory if it doesn't exist
-      const uploadsDir = path.join(process.cwd(), "uploads", user.id);
-      await mkdir(uploadsDir, { recursive: true });
-
-      // Generate unique filename
-      const timestamp = Date.now();
-      const safeFilename = filename.replace(/[^a-zA-Z0-9.-]/g, "_");
-      const filePath = path.join(uploadsDir, `${timestamp}_${safeFilename}`);
-
-      // Write file to disk
-      await writeFile(filePath, buffer);
-
-      // Store relative path for portability
-      const relativeFilePath = path.join(
-        "uploads",
-        user.id,
-        `${timestamp}_${safeFilename}`
-      );
-
-      // First create the document
+      // Create the document (no file storage in serverless environment)
+      // Note: filePath is nullable in schema, so we can omit it
       const document = await prisma.document.create({
         data: {
-          filename: filename,
-          filePath: relativeFilePath,
+          filename: filename || file.name,
           userId: user.id,
+          // filePath is optional - we're not storing files in serverless
         },
       });
 
