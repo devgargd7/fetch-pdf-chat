@@ -6,15 +6,16 @@
     "dev": "next dev",
     "dev:full": "concurrently \"npm run dev\" \"npm run python:dev\"",
     "python:dev": "./start-python-server.sh",
-    "build": "prisma generate --no-engine && next build",
-    "postinstall": "prisma generate --no-engine",
+    "build": "prisma generate && next build",
+    "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "test:embeddings": "node test-embeddings.js"
+    "test:embeddings": "node test-embeddings.js",
+    "vercel-build": "prisma generate && prisma db push --skip-generate && next build"
   },
   "dependencies": {
     "@ai-sdk/openai": "^2.0.53",

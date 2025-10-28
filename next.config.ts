@@ -11,6 +11,10 @@ const nextConfig: NextConfig = {
       "./node_modules/.prisma/client/**/*",
       "./node_modules/@prisma/client/**/*",
     ],
+    "/**/*": [
+      "./node_modules/.prisma/client/**/*",
+      "./node_modules/@prisma/client/**/*",
+    ],
   },
   webpack: (config, { isServer }) => {
     if (isServer) {
