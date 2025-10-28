@@ -39,3 +39,4 @@ echo "  npm run build        - Build for production"
 echo "  npm run db:generate - Generate Prisma client"
 echo "  npm run db:push     - Push schema to database"
 echo "  npm run db:studio   - Open Prisma Studio"
+
