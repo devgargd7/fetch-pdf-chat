@@ -39,7 +39,7 @@ model Session {
 model Document {
   id            String         @id @default(cuid())
   filename      String
-  filePath      String         // Path where file is stored
+  filePath      String?        // Path where file is stored (optional for serverless)
   userId        String
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt     DateTime       @default(now())
