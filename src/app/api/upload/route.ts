@@ -56,13 +56,21 @@ export async function POST(request: NextRequest) {
     });
 
     console.log("Python function response status:", pythonResponse.status);
-    console.log("Python function response headers:", Object.fromEntries(pythonResponse.headers.entries()));
+    console.log(
+      "Python function response headers:",
+      Object.fromEntries(pythonResponse.headers.entries())
+    );
 
     if (!pythonResponse.ok) {
       // Try to get error as text first in case it's HTML
       const errorText = await pythonResponse.text();
-      console.error("Error from Python function (status:", pythonResponse.status, "):", errorText);
-      
+      console.error(
+        "Error from Python function (status:",
+        pythonResponse.status,
+        "):",
+        errorText
+      );
+
       let errorMessage = "Failed to process PDF";
       try {
         const errorData = JSON.parse(errorText);
@@ -71,16 +79,16 @@ export async function POST(request: NextRequest) {
         // Not JSON, use the text
         errorMessage = errorText.substring(0, 200);
       }
-      
-      return NextResponse.json(
-        { error: errorMessage },
-        { status: 500 }
-      );
+
+      return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
 
     const responseText = await pythonResponse.text();
-    console.log("Python function response (first 500 chars):", responseText.substring(0, 500));
-    
+    console.log(
+      "Python function response (first 500 chars):",
+      responseText.substring(0, 500)
+    );
+
     const data = JSON.parse(responseText);
     const { filename, chunks } = data;
 
@@ -156,10 +164,12 @@ export async function POST(request: NextRequest) {
     }
   } catch (fetchError) {
     console.error("Fetch error calling Python function:", fetchError);
+    console.error("Error stack:", (fetchError as Error).stack);
     return NextResponse.json(
       {
-        error: "Could not connect to processing service. Is it running?",
+        error: "Could not connect to processing service",
         details: (fetchError as Error).message,
+        url: pythonApiUrl,
       },
       { status: 500 }
     );
