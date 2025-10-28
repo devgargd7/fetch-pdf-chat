@@ -155,8 +155,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(completeDocument, { status: 201 });
     } catch (dbError) {
       console.error("Database error:", dbError);
+      console.error("Database error stack:", (dbError as Error).stack);
       return NextResponse.json(
-        { error: "Failed to save document to database" },
+        { 
+          error: "Failed to save document to database",
+          details: (dbError as Error).message,
+        },
         { status: 500 }
       );
     }
