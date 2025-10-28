@@ -5,6 +5,13 @@ const nextConfig: NextConfig = {
     // Ensure Prisma packages remain external so their runtime engines are bundled correctly in Lambdas
     serverComponentsExternalPackages: ["@prisma/client", "prisma"],
   },
+  // Include Prisma engine files in the traced files for serverless functions
+  outputFileTracingIncludes: {
+    "/api/**/*": [
+      "./node_modules/.prisma/client/**/*",
+      "./node_modules/@prisma/client/**/*",
+    ],
+  },
   webpack: (config, { isServer }) => {
     if (isServer) {
       // Use Prisma's official plugin to copy engine files to Lambda
