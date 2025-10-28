@@ -6,7 +6,7 @@
     "dev": "next dev",
     "dev:full": "concurrently \"npm run dev\" \"npm run python:dev\"",
     "python:dev": "./start-python-server.sh",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
     "db:generate": "prisma generate",

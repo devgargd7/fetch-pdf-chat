@@ -6,7 +6,7 @@
 
 generator client {
   provider = "prisma-client"
-  output   = "../src/generated"
+  output   = "../.prisma/client"
 }
 
 datasource db {
@@ -69,12 +69,12 @@ model Message {
 }
 
 model Chunk {
-  id          String                       @id @default(cuid())
+  id          String   @id @default(cuid())
   pageNumber  Int
   textContent String
   bboxList    Json                         // Store bounding box data as JSON
   documentId  String
   document    Document                     @relation(fields: [documentId], references: [id], onDelete: Cascade)
   createdAt   DateTime                     @default(now())
-  embedding   Unsupported("vector(1536)")? // OpenAI text-embedding-3-small dimension 
+  // embedding   Unsupported("vector(1536)")? // OpenAI text-embedding-3-small dimension 
 }
