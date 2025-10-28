@@ -76,5 +76,5 @@ model Chunk {
   documentId  String
   document    Document                     @relation(fields: [documentId], references: [id], onDelete: Cascade)
   createdAt   DateTime                     @default(now())
-  // embedding   Unsupported("vector(1536)")? // OpenAI text-embedding-3-small dimension 
+  embedding   Unsupported("vector(1536)")? // OpenAI text-embedding-3-small dimension 
 }
