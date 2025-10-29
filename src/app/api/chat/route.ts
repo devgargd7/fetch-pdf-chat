@@ -4,6 +4,9 @@ import { streamText } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { getCurrentUser } from "@/lib/session";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   try {
     // Check authentication
