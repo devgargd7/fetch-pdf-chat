@@ -8,6 +8,7 @@ import { getCurrentUser } from "@/lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 export const maxDuration = 60;
 
 // This function processes the PDF by forwarding it to our Python function.

@@ -4,10 +4,11 @@ import { getCurrentUser } from "@/lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function GET(
   req: NextRequest,
-  context: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getCurrentUser();
@@ -15,10 +16,10 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = context.params;
+    const params = await context.params;
     const conversation = await prisma.conversation.findFirst({
       where: {
-        id,
+        id: params.id,
         userId: user.id,
       },
       include: {
@@ -48,7 +49,7 @@ export async function GET(
 
 export async function DELETE(
   req: NextRequest,
-  context: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getCurrentUser();
@@ -56,10 +57,10 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = context.params;
+    const params = await context.params;
     const conversation = await prisma.conversation.findFirst({
       where: {
-        id,
+        id: params.id,
         userId: user.id,
       },
     });
@@ -72,7 +73,7 @@ export async function DELETE(
     }
 
     await prisma.conversation.delete({
-      where: { id },
+      where: { id: params.id },
     });
 
     return NextResponse.json({ message: "Conversation deleted" });

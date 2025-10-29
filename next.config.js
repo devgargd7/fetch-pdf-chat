@@ -1,9 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Ensure Prisma packages remain external so their runtime engines are bundled correctly in Lambdas
-  experimental: {
-    serverComponentsExternalPackages: ["@prisma/client", "prisma"],
-  },
+  serverExternalPackages: ["@prisma/client", "prisma"],
   // Include Prisma engine files in the traced files for serverless functions
   outputFileTracingIncludes: {
     "/api/**/*": [

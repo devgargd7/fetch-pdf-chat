@@ -5,10 +5,11 @@ import path from "path";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function GET(
   req: NextRequest,
-  context: { params: { path: string[] } }
+  context: { params: Promise<{ path: string[] }> }
 ) {
   try {
     // Check authentication
@@ -17,7 +18,8 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const filePath = context.params.path.join("/");
+    const params = await context.params;
+    const filePath = params.path.join("/");
 
     // Security: Ensure the path starts with uploads/{userId} to prevent directory traversal
     if (!filePath.startsWith(`uploads/${user.id}/`)) {
