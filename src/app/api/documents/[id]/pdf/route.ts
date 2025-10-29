@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  context: { params: { id: string } }
 ) {
   try {
     const user = await getCurrentUser();
@@ -15,10 +15,10 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const params = await context.params;
+    const { id } = context.params;
     const document = await prisma.document.findFirst({
       where: {
-        id: params.id,
+        id,
         userId: user.id,
       },
       select: {
@@ -43,4 +43,3 @@ export async function GET(
     return NextResponse.json({ error: "Failed to fetch PDF" }, { status: 500 });
   }
 }
-

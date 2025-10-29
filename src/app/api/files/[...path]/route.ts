@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   req: NextRequest,
-  context: { params: Promise<{ path: string[] }> }
+  context: { params: { path: string[] } }
 ) {
   try {
     // Check authentication
@@ -17,9 +17,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Await params in Next.js 15
-    const params = await context.params;
-    const filePath = params.path.join("/");
+    const filePath = context.params.path.join("/");
 
     // Security: Ensure the path starts with uploads/{userId} to prevent directory traversal
     if (!filePath.startsWith(`uploads/${user.id}/`)) {
