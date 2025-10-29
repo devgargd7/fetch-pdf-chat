@@ -3,5 +3,19 @@
     "api/process-pdf.py": {
       "maxDuration": 60
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/api/conversations/:id",
+      "destination": "/api/conversations/[id]"
+    },
+    {
+      "source": "/api/documents/:id/pdf",
+      "destination": "/api/documents/[id]/pdf"
+    },
+    {
+      "source": "/api/files/:path*",
+      "destination": "/api/files/[...path]"
+    }
+  ]
 }
